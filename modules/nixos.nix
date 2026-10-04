@@ -11,6 +11,14 @@ let
   cfg = config.programs.logos;
 in
 {
+  imports = [
+    (lib.mkRemovedOptionModule [ "programs" "logos" "colors" ] ''
+      The dark Wine palette was removed: Logos paints its Bible text with
+      system colours, so it made the text unreadable. `theme` alone sets
+      Logos' dark mode.
+    '')
+  ];
+
   options.programs.logos = import ./options.nix self args // {
     ntsync = lib.mkOption {
       type = lib.types.bool;

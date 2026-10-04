@@ -5,7 +5,6 @@ cfg.package.override {
     inherit (cfg)
       wine
       theme
-      colors
       renderer
       dpi
       graphicsDriver

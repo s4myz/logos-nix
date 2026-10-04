@@ -4,7 +4,6 @@ self:
 { lib, pkgs, ... }:
 let
   inherit (lib) mkOption mkEnableOption types;
-  color = types.strMatching "#?[0-9a-fA-F]{6}";
 in
 {
   enable = mkEnableOption "Logos Bible Software (installed into a Wine prefix on first run)";
@@ -39,48 +38,11 @@ in
     ];
     default = "dark";
     description = ''
-      Colours of Wine-drawn UI (installer, file pickers, message boxes, menus)
-      and the system light/dark preference reported to Windows apps. Logos'
-      own window follows its in-app setting: run the command
-      "Set Application Theme to Dark" once inside Logos.
+      Windows app theme reported to Logos, which follows it until an
+      Application Theme is chosen inside Logos (⋯ → Application Theme).
+      Wine's own dialogs always keep their stock colours: a dark system
+      palette makes Logos' Bible text unreadable.
     '';
-  };
-
-  colors = mkOption {
-    type = types.submodule {
-      freeformType = types.attrsOf color;
-      options =
-        lib.genAttrs
-          [
-            "background"
-            "surface"
-            "raised"
-            "border"
-            "shadow"
-            "text"
-            "mutedText"
-            "accent"
-            "accentText"
-          ]
-          (
-            name:
-            mkOption {
-              type = types.nullOr color;
-              default = null;
-              description = "`#rrggbb`; null keeps the built-in neutral dark palette's value.";
-            }
-          );
-    };
-    default = { };
-    apply = lib.filterAttrs (_: v: v != null);
-    example = lib.literalExpression ''
-      with config.lib.stylix.colors.withHashtag; {
-        background = base00; surface = base01; raised = base02; border = base03;
-        shadow = base00; text = base05; mutedText = base04;
-        accent = base0D; accentText = base00;
-      }
-    '';
-    description = "Palette for the dark Wine theme (ignored when `theme = \"light\"`).";
   };
 
   renderer = mkOption {

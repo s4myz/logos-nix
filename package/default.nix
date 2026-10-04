@@ -47,10 +47,9 @@ let
     # Wine build. stagingFull is the closest to the community installer's
     # recommendation (wine-staging) and embeds mono/gecko, so nothing prompts.
     wine = wineWow64Packages.stagingFull;
-    # "dark" | "light": colours Wine's own UI and tells apps that ask (uxtheme)
-    # which mode the system is in. Logos' window follows its in-app theme.
+    # "dark" | "light": the Windows app theme reported to Logos, which follows
+    # it until you pick an Application Theme inside Logos.
     theme = "dark";
-    colors = { };
     # "gdi" (community default: slow, software) | "gl" | "vulkan" (wined3d) |
     # "dxvk" (D3D on Vulkan: the fix users report for a laggy UI).
     renderer = "gdi";
@@ -96,20 +95,6 @@ let
     channel
     ;
 
-  defaultColors = {
-    background = "#1e1e1e";
-    surface = "#2b2b2b";
-    raised = "#3a3a3a";
-    border = "#4a4a4a";
-    shadow = "#121212";
-    text = "#e6e6e6";
-    mutedText = "#8c8c8c";
-    accent = "#3d7ae0";
-    accentText = "#ffffff";
-  };
-
-  palette = defaultColors // cfg.colors;
-
   # FaithLife-Community's ICU build for Windows: Wine has no icu.dll
   # (WineHQ bug 53354) and Logos' .NET runtime will not start without it.
   icu = fetchurl {
@@ -128,7 +113,6 @@ let
         browser
         extraRegistry
         ;
-      colors = palette;
     }
   );
 
@@ -286,7 +270,7 @@ stdenvNoCC.mkDerivation {
     description = "Declarative Wine launcher and installer for Logos Bible Software";
     longDescription = ''
       Installs the official Logos Bible Software into a per-user Wine prefix on
-      first run and launches it, with dark Wine theming, DXVK, update control
+      first run and launches it, with dark mode, DXVK, update control
       and a logos4: URL handler for signing in. Logos itself is downloaded from
       Faithlife and is subject to its terms.
     '';

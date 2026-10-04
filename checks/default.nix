@@ -11,7 +11,6 @@ let
       dpi = 144;
       browser = "firefox";
       memoryHigh = "75%";
-      colors.accent = "#89b4fa";
     };
   };
   light = logos.override { logosConfig.theme = "light"; };
@@ -24,9 +23,14 @@ let
     fail() { echo "FAIL: $*" >&2; exit 1; }
 
     grep -qx 'REGEDIT4' $dark || fail "no REGEDIT4 header"
-    grep -qx '"ThemeActive"="0"' $dark || fail "dark: msstyles still active"
+    for f in $dark $dxvk $light; do
+      # Wine keeps stock colours in every mode: a dark system palette makes
+      # Logos' Bible text unreadable.
+      grep -qx '"ThemeActive"="1"' $f || fail "$f: msstyles not active"
+      grep -qx '\[-HKEY_CURRENT_USER\\Control Panel\\Colors\]' $f || fail "$f: system colours not reset"
+      grep -q '"Window"=' $f && fail "$f: custom system colours written"
+    done
     grep -qx '"AppsUseLightTheme"=dword:00000000' $dark || fail "dark: AppsUseLightTheme"
-    grep -qx '"Window"="30 30 30"' $dark || fail "dark: default palette"
     grep -qx '"renderer"="gdi"' $dark || fail "default renderer"
     grep -qx '"d3d11"=-' $dark || fail "gdi must clear DXVK overrides"
     grep -qx '"LogPixels"=-' $dark || fail "default DPI must be cleared"
@@ -35,13 +39,10 @@ let
     grep -qx '"d3d11"="native,builtin"' $dxvk || fail "dxvk: override"
     grep -qx '"LogPixels"=dword:00000090' $dxvk || fail "dpi 144"
     grep -qx '"Browsers"="firefox"' $dxvk || fail "browser"
-    grep -qx '"Hilight"="137 180 250"' $dxvk || fail "custom accent"
     grep -q 'MemoryHigh' ${dxvkDark}/bin/.logos-wrapped || fail "launcher lost memoryHigh handling"
     grep -q '^readonly MEMORY_HIGH=75%' ${dxvkDark}/bin/.logos-wrapped || fail "memoryHigh not substituted"
 
-    grep -qx '"ThemeActive"="1"' $light || fail "light: msstyles"
-    grep -qx '\[-HKEY_CURRENT_USER\\Control Panel\\Colors\]' $light || fail "light: colours not reset"
-    grep -q '"Window"=' $light && fail "light: dark palette leaked"
+    grep -qx '"AppsUseLightTheme"=dword:00000001' $light || fail "light: AppsUseLightTheme"
 
     touch $out
   '';
@@ -56,7 +57,6 @@ let
           programs.logos = {
             enable = true;
             renderer = "dxvk";
-            colors.accent = "#89b4fa";
           };
           fileSystems."/" = {
             device = "none";
@@ -77,6 +77,8 @@ let
         self.homeModules.default
         {
           options.home.packages = lib.mkOption { type = lib.types.listOf lib.types.package; };
+          options.assertions = lib.mkOption { type = lib.types.listOf lib.types.unspecified; };
+          options.warnings = lib.mkOption { type = lib.types.listOf lib.types.str; };
           options.xdg.mimeApps.defaultApplications = lib.mkOption {
             type = lib.types.attrsOf lib.types.str;
             default = { };
@@ -110,7 +112,7 @@ in
     ${lib.optionalString (
       hmEval.xdg.mimeApps.defaultApplications."x-scheme-handler/logos4" != "logos.desktop"
     ) "echo 'no logos4 handler' >&2; exit 1"}
-    grep -qx '"ThemeActive"="1"' ${(lib.head hmEval.home.packages).settings}
+    grep -qx '"AppsUseLightTheme"=dword:00000001' ${(lib.head hmEval.home.packages).settings}
     touch $out
   '';
 }

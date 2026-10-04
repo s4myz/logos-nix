@@ -5,7 +5,6 @@
 {
   lib,
   theme,
-  colors,
   renderer,
   dpi,
   graphicsDriver,
@@ -17,86 +16,24 @@ let
   bool01 = b: dword (if b then 1 else 0);
   regString = s: ''"${lib.replaceStrings [ ''\'' ''"'' ] [ ''\\'' ''\"'' ] s}"'';
 
-  # "#rrggbb" or "rrggbb" -> "r g b" (what Control Panel\Colors stores).
-  rgb =
-    hex:
-    let
-      h = lib.removePrefix "#" hex;
-      byte = i: toString (lib.fromHexString (builtins.substring i 2 h));
-    in
-    assert lib.assertMsg (
-      builtins.match "[0-9a-fA-F]{6}" h != null
-    ) "logos: colour '${hex}' is not of the form #rrggbb";
-    "${byte 0} ${byte 2} ${byte 4}";
-
-  # Windows system colours, driven by a small semantic palette. These colour
-  # Wine-drawn UI only (msiexec, file pickers, message boxes, menus); Logos
-  # draws its own windows and follows its in-app Application Theme.
-  systemColors = with colors; {
-    Background = background;
-    AppWorkSpace = background;
-    Window = background;
-    WindowText = text;
-    ButtonFace = surface;
-    ButtonAlternateFace = surface;
-    ButtonText = text;
-    ButtonHilight = raised;
-    ButtonLight = raised;
-    ButtonShadow = border;
-    ButtonDkShadow = shadow;
-    Menu = surface;
-    MenuBar = surface;
-    MenuText = text;
-    MenuHilight = accent;
-    Scrollbar = surface;
-    InfoWindow = raised;
-    InfoText = text;
-    GrayText = mutedText;
-    Hilight = accent;
-    HilightText = accentText;
-    HotTrackingColor = accent;
-    ActiveTitle = surface;
-    GradientActiveTitle = surface;
-    TitleText = text;
-    InactiveTitle = background;
-    GradientInactiveTitle = background;
-    InactiveTitleText = mutedText;
-    ActiveBorder = border;
-    InactiveBorder = border;
-    WindowFrame = border;
-  };
-
   dark = theme == "dark";
 
   themeSection = ''
-    ; Apps that ask Windows for the system theme (uxtheme ShouldAppsUseDarkMode)
+    ; Logos follows the Windows app theme (uxtheme ShouldAppsUseDarkMode).
     [HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize]
     "AppsUseLightTheme"=${bool01 (!dark)}
     "SystemUsesLightTheme"=${bool01 (!dark)}
 
-  ''
-  + (
-    if dark then
-      ''
-        ; Wine's aero/light msstyles has no dark variant: turn it off so the
-        ; system colours below are what Wine draws with.
-        [HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\ThemeManager]
-        "ThemeActive"="0"
+    ; Keep Wine's stock visual style and system colours. Logos paints resource
+    ; panels with the system Window colour and picks text colours that assume
+    ; the Windows defaults, so a dark system palette makes Bible text
+    ; unreadable (dark on dark) in either Logos theme. These lines also undo
+    ; the dark palette that logos-nix 0.1.0 wrote.
+    [HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\ThemeManager]
+    "ThemeActive"="1"
 
-        [-HKEY_CURRENT_USER\Control Panel\Colors]
-
-        [HKEY_CURRENT_USER\Control Panel\Colors]
-        ${lib.concatStringsSep "\n" (lib.mapAttrsToList (n: v: ''"${n}"="${rgb v}"'') systemColors)}
-      ''
-    else
-      ''
-        [HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\ThemeManager]
-        "ThemeActive"="1"
-
-        ; Wine falls back to its built-in defaults without this key.
-        [-HKEY_CURRENT_USER\Control Panel\Colors]
-      ''
-  );
+    [-HKEY_CURRENT_USER\Control Panel\Colors]
+  '';
 
   dxvkDlls = [
     "d3d8"
