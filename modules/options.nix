@@ -54,9 +54,11 @@ in
     ];
     default = "gdi";
     description = ''
-      Direct3D backend. `gdi` is the community installer's default: software
-      rendering, stable but slow on large or HiDPI screens. `dxvk` (Direct3D on
-      Vulkan) is what users report fixes the laggy UI; it needs working Vulkan.
+      Direct3D backend. `gdi` renders in software: stable, and the only choice
+      whose popups render correctly on wlroots compositors (Hyprland, Sway),
+      but slower on big screens. `dxvk` (Direct3D on Vulkan) and `gl` are
+      smoother; on Hyprland their menus and tooltips come out black, and `gl`
+      has frozen Logos. They should be fine on GNOME and KDE (untested).
     '';
   };
 
@@ -133,6 +135,22 @@ in
       Soft memory cap for Logos and its Wine processes (systemd `MemoryHigh`).
       Each Logos panel runs its own ~250 MB Chromium process, so this keeps a
       long session from pushing the rest of the desktop into swap.
+    '';
+  };
+
+  popupShadowFix = mkOption {
+    type = types.enum [
+      "auto"
+      "on"
+      "off"
+    ];
+    default = "auto";
+    description = ''
+      Preload a small shim that stops Logos' tooltips, menus and popups being
+      drawn inside oversized dark boxes on wlroots compositors (Hyprland, Sway).
+      Those compositors ignore the X11 shape Wine gives popups with shadows.
+      `auto` enables it with `renderer = "gdi"` on Wayland sessions other
+      than GNOME and KDE. With `dxvk`/`gl` it would make popups solid black.
     '';
   };
 

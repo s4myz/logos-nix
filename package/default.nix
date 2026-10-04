@@ -7,6 +7,7 @@
 # set it with `.override`.
 {
   lib,
+  stdenv,
   stdenvNoCC,
   fetchurl,
   writeText,
@@ -50,8 +51,9 @@ let
     # "dark" | "light": the Windows app theme reported to Logos, which follows
     # it until you pick an Application Theme inside Logos.
     theme = "dark";
-    # "gdi" (community default: slow, software) | "gl" | "vulkan" (wined3d) |
-    # "dxvk" (D3D on Vulkan: the fix users report for a laggy UI).
+    # "gdi" (software; the only one whose popups render correctly on wlroots
+    # compositors such as Hyprland) | "gl" | "vulkan" (wined3d) | "dxvk"
+    # (D3D on Vulkan: smoother, fine on GNOME/KDE).
     renderer = "gdi";
     # Windows DPI (96 = 100 %, 144 = 150 %). null keeps Wine's default.
     dpi = null;
@@ -70,6 +72,11 @@ let
     updateCheck = true;
     # Soft memory cap for Logos (systemd MemoryHigh, e.g. "75%"); null = none.
     memoryHigh = null;
+    # "auto" | "on" | "off": preload nowineshape.c, which stops Logos'
+    # popups being drawn inside oversized dark boxes on wlroots compositors.
+    # "auto" enables it with the gdi renderer on Wayland sessions other than
+    # GNOME and KDE.
+    popupShadowFix = "auto";
     winedebug = "err+all";
     channel = "stable";
   };
@@ -91,6 +98,7 @@ let
     blockAppUpdates
     updateCheck
     memoryHigh
+    popupShadowFix
     winedebug
     channel
     ;
@@ -131,6 +139,16 @@ let
 
   boolStr = b: if b then "1" else "0";
 
+  # See nowineshape.c. Wine's WoW64 build runs all Unix-side code as 64-bit,
+  # so one x86_64 library covers every Wine process.
+  nowineshape = stdenv.mkDerivation {
+    name = "nowineshape";
+    src = ./nowineshape.c;
+    dontUnpack = true;
+    buildPhase = "$CC -O2 -Wall -Werror -shared -fPIC -o nowineshape.so $src -ldl";
+    installPhase = "install -Dm755 nowineshape.so $out/lib/nowineshape.so";
+  };
+
   runtimePath = lib.makeBinPath [
     wine
     curl
@@ -167,6 +185,11 @@ assert lib.assertOneOf "graphicsDriver" graphicsDriver [
   null
   "x11"
   "wayland"
+];
+assert lib.assertOneOf "popupShadowFix" popupShadowFix [
+  "auto"
+  "on"
+  "off"
 ];
 assert lib.assertOneOf "channel" channel [
   "stable"
@@ -244,6 +267,8 @@ stdenvNoCC.mkDerivation {
       --subst-var-by updateCheck ${boolStr updateCheck} \
       --subst-var-by memoryHigh '${toString memoryHigh}' \
       --subst-var-by winedebug '${winedebug}' \
+      --subst-var-by shapeShim ${nowineshape}/lib/nowineshape.so \
+      --subst-var-by popupShadowFix ${popupShadowFix} \
       --subst-var-by feed 'https://clientservices.logos.com/update/v1/feed/logos10/${channel}.xml'
     wrapProgram $out/bin/logos --prefix PATH : ${runtimePath}
     runHook postInstall
@@ -262,7 +287,12 @@ stdenvNoCC.mkDerivation {
   '';
 
   passthru = {
-    inherit wine setup icu;
+    inherit
+      wine
+      setup
+      icu
+      nowineshape
+      ;
     settings = settingsReg;
   };
 

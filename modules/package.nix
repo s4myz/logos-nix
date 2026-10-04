@@ -14,6 +14,7 @@ cfg.package.override {
       blockAppUpdates
       updateCheck
       memoryHigh
+      popupShadowFix
       channel
       ;
   };

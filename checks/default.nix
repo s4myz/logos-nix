@@ -41,6 +41,9 @@ let
     grep -qx '"Browsers"="firefox"' $dxvk || fail "browser"
     grep -q 'MemoryHigh' ${dxvkDark}/bin/.logos-wrapped || fail "launcher lost memoryHigh handling"
     grep -q '^readonly MEMORY_HIGH=75%' ${dxvkDark}/bin/.logos-wrapped || fail "memoryHigh not substituted"
+    grep -q '^readonly POPUP_SHADOW_FIX=auto' ${dxvkDark}/bin/.logos-wrapped || fail "popupShadowFix not substituted"
+    grep -q '^readonly SHAPE_SHIM=/nix/store/.*/lib/nowineshape.so' ${dxvkDark}/bin/.logos-wrapped || fail "shim path"
+    ${pkgs.binutils}/bin/nm -D ${logos.nowineshape}/lib/nowineshape.so | grep -q ' T XShapeCombineMask$' || fail "shim does not export XShapeCombineMask"
 
     grep -qx '"AppsUseLightTheme"=dword:00000001' $light || fail "light: AppsUseLightTheme"
 

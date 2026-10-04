@@ -8,11 +8,12 @@ Logos Bible Software on NixOS, as a flake. You get one `logos` command that:
 
 Logos itself is **not** in this repository or the Nix store. Faithlife's installer is downloaded on your machine the first time you run `logos`, and you accept Faithlife's [terms](https://faithlife.com/terms) at that point. The free tier ("Logos Free Edition") works.
 
-Status: tested on 2026-10-04, NixOS with Hyprland on an NVIDIA RTX 5080:
+Status: tested on 2026-10-04, NixOS with Hyprland 0.55 on an NVIDIA RTX 5080:
 - Wine staging 11.18;
 - Logos 53.1;
 - sign-in through Brave;
-- the free library downloaded and indexed.
+- the free library downloaded and indexed;
+- dark mode, and correct popups with the Hyprland setup below.
 
 ## Use it
 
@@ -96,13 +97,14 @@ Right-clicking the launcher entry offers *Update Logos*, *Rebuild Library Index*
 | `enable` | `false` | |
 | `wine` | `wineWow64Packages.stagingFull` | Must be a WoW64 build. `stableFull` is the fallback. |
 | `theme` | `"dark"` | The Windows app theme reported to Logos. Logos follows it until you pick an *Application Theme* in Logos. |
-| `renderer` | `"gdi"` | `gdi` (software; stable but slow), `gl`, `vulkan`, or `dxvk` (Direct3D on Vulkan, which users report fixes a laggy UI). |
+| `renderer` | `"gdi"` | `gdi` (software), `gl`, `vulkan` or `dxvk` (Direct3D on Vulkan). See [Hyprland and other wlroots compositors](#hyprland-and-other-wlroots-compositors) before leaving `gdi`. |
 | `dpi` | `null` | Windows DPI, e.g. `144` for 150 %. |
 | `graphicsDriver` | `"x11"` | `x11` runs through XWayland. Wine's own `wayland` driver is experimental for Logos. |
 | `browser` | `null` | Browser for links Logos opens. `null` means xdg-open. Use `"firefox"` if *Sign In* does nothing. |
 | `blockAppUpdates` | `true` | Logos updating itself crashes under Wine. Use `logos update` instead. |
 | `updateCheck` | `true` | Notify at launch when a newer release exists. |
 | `memoryHigh` | `null` | Soft memory cap through systemd, e.g. `"75%"`. Each Logos panel runs its own ~250 MB Chromium. |
+| `popupShadowFix` | `"auto"` | Preloads a shim so popups aren't drawn inside oversized dark boxes on wlroots compositors. `auto` enables it with `gdi` on Wayland sessions other than GNOME/KDE. |
 | `acceptEula` | `false` | `true` skips the terms dialog before installing. |
 | `channel` | `"stable"` | `"beta"` follows Faithlife's beta feed. |
 | `extraRegistry` | `""` | Extra REGEDIT4 lines. |
@@ -125,14 +127,49 @@ Logos itself, with your library and notes, stays mutable in the prefix, under `d
 
 The Wine setup follows the community installer, [Ou Dedetai](https://github.com/FaithLife-Community/OuDedetai). [`docs/research/logos-on-wine.md`](docs/research/logos-on-wine.md) traces each step to its source.
 
+## Hyprland and other wlroots compositors
+
+Logos' menus, tooltips and flyouts are separate, partly transparent Wine
+windows. On GNOME and KDE they just work. On Hyprland (tested 0.55, XWayland)
+three things go wrong, and each has a fix:
+
+1. **Dark boxes around popups.** Wine gives each popup an X11 shape that cuts
+   away its transparent shadow margin. wlroots compositors ignore that shape,
+   so the margin is drawn dark. The bundled `nowineshape` shim (on by default,
+   see `popupShadowFix`) drops that one X call.
+2. **Hyprland decorates and focuses the popups like app windows.** It adds a
+   border, shadow and animation, and it gives each popup keyboard focus. With
+   focus-follows-mouse, focus then jumps back to the main window on the way to
+   the popup. Some flyouts (e.g. *Layouts*) close the moment that happens.
+   Popups have class `logos.exe` and an empty title, so a window rule sorts
+   them out:
+
+   ```nix
+   wayland.windowManager.hyprland.settings.windowrule = map (effect:
+     "${effect}, match:class ^(logos\\.exe)$, match:title ^$"
+   ) [ "no_focus 1" "border_size 0" "no_shadow 1" "no_blur 1" "rounding 0" "no_anim 1" ];
+   ```
+
+   That's the Hyprland 0.55 rule syntax; older versions spell it
+   `windowrulev2 = nofocus, class:^(logos\.exe)$, title:^$` and so on.
+3. **GPU renderers turn popups black.** With `dxvk` or `gl`, Wine puts an
+   opaque Vulkan/GL child window inside each transparent popup, and XWayland
+   shows that instead of the popup. With the shim, the popups are solid black;
+   without it, they're boxed. `gl` also froze Logos in testing. So on these
+   compositors keep `renderer = "gdi"`. It's software rendering, a little
+   choppy on a 1440p screen, but everything draws correctly.
+
+Wine's own Wayland driver (`graphicsDriver = "wayland"`) would avoid all of
+this, but Logos 53.1 crashes on it while creating its main window (Wine 11.18).
+
 ## Troubleshooting
 
 - **Signing in opens the browser, but it can't hand back to Logos** ("GNOME Software can't find…", or nothing happens). Your browser opens `logos4:` links through the XDG desktop portal. The portal only notices new desktop entries after it restarts, which matters right after you first install the package. Run `systemctl --user restart xdg-desktop-portal`, or log out and back in, then click *Sign In* again.
-- **The UI is slow:** set `renderer = "dxvk"`.
+- **The UI is slow:** `renderer = "dxvk"` is much smoother. On Hyprland/Sway it costs you correct popups, see below.
 - **The UI is too small on a HiDPI screen:** set `dpi`.
 - **Logos won't start after a crash:** `logos kill`, then `logos`.
 - **Logs:** `~/.local/state/logos/wine.log` (the previous run is `wine.1.log`), and `launcher.log` in the same directory.
-- **Known Wine limitations:** printing, audio/video and text-to-speech don't work. On wlroots compositors, Wine popups can have black frames.
+- **Known Wine limitations:** printing, audio/video and text-to-speech don't work.
 
 ## Development
 

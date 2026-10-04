@@ -14,6 +14,8 @@ readonly BLOCK_APP_UPDATES=@blockAppUpdates@
 readonly UPDATE_CHECK=@updateCheck@
 readonly MEMORY_HIGH=@memoryHigh@
 readonly FEED=@feed@
+readonly SHAPE_SHIM=@shapeShim@ # package/nowineshape.c
+readonly POPUP_SHADOW_FIX=@popupShadowFix@
 
 readonly LOGOS_HOME=${LOGOS_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/logos}
 readonly CACHE_DIR=${XDG_CACHE_HOME:-$HOME/.cache}/logos
@@ -27,6 +29,26 @@ export WINEARCH=win64
 # Wine file associations. The registry disables it too, but only after the
 # prefix exists — this covers the very first wineboot.
 export WINEDLLOVERRIDES="winemenubuilder.exe=d${WINEDLLOVERRIDES:+;$WINEDLLOVERRIDES}"
+# Popups drawn inside dark boxes on wlroots compositors: see nowineshape.c.
+# Only with the gdi renderer: with dxvk/gl the popups' opaque GPU child window
+# shows through once the shape is gone, and they turn solid black.
+want_shape_shim() {
+  case $POPUP_SHADOW_FIX in
+    on) return 0 ;;
+    off) return 1 ;;
+  esac
+  [ "$RENDERER" = gdi ] || return 1
+  [ "${XDG_SESSION_TYPE:-}" = wayland ] || return 1
+  case ${XDG_CURRENT_DESKTOP,,} in
+    *gnome* | *kde*) return 1 ;;
+  esac
+}
+if want_shape_shim; then
+  export LD_PRELOAD="$SHAPE_SHIM${LD_PRELOAD:+:$LD_PRELOAD}"
+fi
+
+# DXVK otherwise writes <exe>_d3d11.log files into the current directory.
+export DXVK_LOG_PATH=${DXVK_LOG_PATH:-$STATE_DIR}
 
 # Wine names the prefix's user directory after the Unix user.
 WINE_USER=${USER:-$(id -un)}
@@ -454,6 +476,7 @@ latest      ${latest:-unknown}
 running     $(is_running && echo yes || echo no)
 theme       $THEME
 renderer    $RENDERER
+popup fix   $(want_shape_shim && echo "on (nowineshape)" || echo off)
 log         $LOG
 EOF
 }
